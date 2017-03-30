@@ -386,16 +386,22 @@ class Build(BuildVarHost):
     print("[Build] Ninja exited with code %s" % (retcode))
 
   def path(self, *args):
-    return BuildPath(*args)
+    return BuildPath(os.path.join(*args))
 
-  def path_b(self, path):
-    return self.path(path, False)
+  def path_b(self, *args):
+    return BuildPath(os.path.join(*args), False)
 
   def paths(self, *args):
-    return [self.path(arg) for arg in args]
+    return [
+        self.path(arg) if isinstance(arg, basestring) else self.path(*arg)
+        for arg in args
+    ]
 
   def paths_b(self, *args):
-    return [self.path_b(arg) for arg in args]
+    return [
+        self.path_b(arg) if isinstance(arg, basestring) else self.path_b(*arg)
+        for arg in args
+    ]
 
 
 class BuildEdge(BuildVarHost):
