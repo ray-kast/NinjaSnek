@@ -208,15 +208,23 @@ class Build(BuildVarHost):
     for edge in self._edges:
       edge._emit(stream, rootdirName, builddirName)
 
-    if len(self._defaults):
-      stream.write(
-          "\ndefault %s\n" % (
-              " ".join([
-                  self._edges[idx].expandName(rootdirName, builddirName)
-                  for idx in self._defaults
-              ])
-          )
-      )
+      if any([tgt in self._defaults for tgt in edge._targets]):
+        stream.write(
+            "%s\n" % "\n".join([
+                "default %s" % (tgt) for tgt in edge._targets
+                if tgt in self._defaults
+            ])
+        )
+
+    # if len(self._defaults):
+    #   stream.write(
+    #       "\ndefault %s\n" % (
+    #           " ".join([
+    #               self._edges[idx].expandName(rootdirName, builddirName)
+    #               for idx in self._defaults
+    #           ])
+    #       )
+    #   )
 
   def _keyValid(self, key):
     return key != "builddir"
