@@ -1,7 +1,6 @@
 """Build configuration stuff."""
 
 import collections
-import io
 import os
 import shutil
 import subprocess
@@ -345,8 +344,8 @@ class Build(BuildVarHost):
                                       cwd = ninjaDir, stdout = subprocess.PIPE)
           remOut = str.strip(unbytes(parseRem.communicate()[0]))
 
-          with open(remCachePath, 'w') as file:
-            file.write(remOut)
+          with open(remCachePath, 'w') as fil:
+            fil.write(remOut)
 
         print("[Build] Local commit: %s; remote commit: %s." % (locOut, remOut))
 
