@@ -554,6 +554,9 @@ class BuildUtil(BuildVarHost):
 
     self._emitVars(stream, rootDir, buildDir, "  ")
 
+  def expandName(self, rootDir, buildDir):
+    return self._name
+
 
 class BuildRule(BuildVarHost):
   def __init__(self, build, name):
