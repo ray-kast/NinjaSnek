@@ -336,7 +336,7 @@ class Build(BuildVarHost):
       )
 
       ninjaPath = os.path.join(ninjaDir, "ninja")
-
+      repo = self._repo or "git@github.com:ninja-build/ninja.git"
       bootstrap = False
 
       if testExe(ninjaPath):
@@ -347,8 +347,6 @@ class Build(BuildVarHost):
             return str(x.decode('ascii'))
 
           return x
-
-        repo = self._repo or "git@github.com:ninja-build/ninja.git"
 
         subprocess.check_call(["git", "checkout", "master"], cwd = ninjaDir,
                               stdout = subprocess.PIPE,
