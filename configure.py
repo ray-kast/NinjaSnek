@@ -204,6 +204,9 @@ class Build(BuildVarHost):
     for edge in self._edges:
       usedRules.add(edge.getRule())
 
+    for util in self._utils:
+      usedRules.add(util._rule)
+
     for rule in self._ruleList:
       if rule in usedRules and rule._emit(stream, rootdirName, builddirName):
         stream.write("\n")
