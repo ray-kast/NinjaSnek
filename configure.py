@@ -363,9 +363,8 @@ class Build(BuildVarHost):
           for line in re.split(
               r"\s", unbytes(parseUrl.communicate()[0]).strip()
           ):
-            match = re.match(r"(\S+)\s+(\S+)\s+\(([^\)]+)\)", line.strip()
-                             ).groups()
-            if match is not None: yield match
+            match = re.match(r"(\S+)\s+(\S+)\s+\(([^\)]+)\)", line.strip())
+            if match is not None: yield match.groups()
 
         for parts in [line for line in matchingLines()]:
           if parts[0] == upstream and parts[2] == "fetch":
