@@ -330,9 +330,8 @@ class Build(BuildVarHost):
         os.remove(remCachePath)
 
     else:
-      print(
-          "No installed version of Ninja found.  Looking for a local version..."
-      )
+      print("[Build] No installed version of Ninja found.  Looking for a local"
+      " version...")
 
       ninjaPath = os.path.join(ninjaDir, "ninja")
       repo = self._repo or "git@github.com:ninja-build/ninja.git"
