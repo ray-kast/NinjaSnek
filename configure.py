@@ -361,8 +361,6 @@ class Build(BuildVarHost):
                                     stderr = subprocess.PIPE)
         remoteInfo = unbytes(parseUrl.communicate()[0]).strip()
 
-        print(remoteInfo)
-
         sameUpstream = False
 
         def parseRemotes():
