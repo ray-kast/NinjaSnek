@@ -356,17 +356,18 @@ class Build(BuildVarHost):
         parseUrl = subprocess.Popen(["git", "remote", "-v"], cwd = ninjaDir,
                                     stdout = subprocess.PIPE,
                                     stderr = subprocess.PIPE)
+        remoteInfo = unbytes(parseUrl.communicate()[0]).strip()
+
+        print(remoteInfo)
 
         sameUpstream = False
 
-        def matchingLines():
-          for line in re.split(
-              r"\s", unbytes(parseUrl.communicate()[0]).strip()
-          ):
-            match = re.match(r"(\S+)\s+(\S+)\s+\(([^\)]+)\)", line.strip())
+        def parseRemotes():
+          for line in remoteInfo.split("\n"):
+            match = re.match(r"(\S+)\s+(\S+)\s+\(([^)]+)\)", line.strip())
             if match is not None: yield match.groups()
 
-        for parts in [line for line in matchingLines()]:
+        for parts in parseRemotes():
           if parts[0] == upstream and parts[2] == "fetch":
             sameUpstream = parts[1] == self._repo
             break
