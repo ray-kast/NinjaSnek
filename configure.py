@@ -124,6 +124,7 @@ class Build(BuildVarHost):
   def __init__(self):
     BuildVarHost.__init__(self)
     self._edges = list()
+    self._utils = list()
     self._ruleList = list()
     self._rules = dict()
     self._targets = dict()
@@ -177,7 +178,7 @@ class Build(BuildVarHost):
 
     if rule is not None: self._edges[idx].setRule(rule)
 
-    if default: self._defaults.add(idx)
+    if default: self._defaults.add(self._edges[idx])
 
     return self._edges[idx]
 
@@ -210,23 +211,18 @@ class Build(BuildVarHost):
     for edge in self._edges:
       edge._emit(stream, rootdirName, builddirName)
 
-      if any([tgt in self._defaults for tgt in edge._targets]):
-        stream.write(
-            "%s\n" % "\n".join([
-                "default %s" % (tgt)
-                for tgt in edge._targets if tgt in self._defaults
-            ])
-        )
+    for util in self._utils:
+      util._emit(stream, rootdirName, builddirName)
 
-    # if len(self._defaults):
-    #   stream.write(
-    #       "\ndefault %s\n" % (
-    #           " ".join([
-    #               self._edges[idx].expandName(rootdirName, builddirName)
-    #               for idx in self._defaults
-    #           ])
-    #       )
-    #   )
+    if len(self._defaults):
+      stream.write(
+          "\ndefault %s\n" % (
+              " ".join([
+                  edge.expandName(rootdirName, builddirName)
+                  for edge in self._defaults
+              ])
+          )
+      )
 
   def _keyValid(self, key):
     return key != "builddir"
@@ -445,6 +441,33 @@ class Build(BuildVarHost):
   def useRepo(self, repo):
     self._repo = repo
 
+  def util(self, name, rule, deps, *args):
+    default = False
+
+    if len(args) == 0: pass
+    elif len(args) == 1: default = args[0]
+    else:
+      raise ValueError("Invalid arguments.")
+
+    if isinstance(deps, (basestring, BuildPath)):
+      deps = BuildDeps((deps, ), (), ())
+
+    if not isinstance(deps, BuildDeps): deps = BuildDeps(deps, (), ())
+
+    if name in self._utils:
+      raise ValueError("Util name already registered.")
+
+    idx = len(self._utils)
+    self._utils.append(BuildUtil(name, rule, deps))
+
+    if default: self._defaults.add(self._utils[idx])
+
+    return self._utils[idx]
+
+  def utils(self, *args):
+    for arg in args:
+      self.util(*arg)
+
 
 class BuildEdge(BuildVarHost):
   def __init__(self, build, targets, deps):
@@ -506,6 +529,23 @@ class BuildEdge(BuildVarHost):
   def unsetRule(self):
     self._rule = None
     return self
+
+
+class BuildUtil(BuildVarHost):
+  def __init__(self, name, rule, deps):
+    BuildVarHost.__init__(self)
+    self._name = name
+    self._rule = rule
+    self._deps = deps
+
+  def _emit(self, stream, rootDir, buildDir):
+    stream.write("util %s: %s " % (self._name, self._rule))
+
+    self._deps._emit(stream, rootDir, buildDir)
+
+    stream.write("\n")
+
+    self._emitVars(stream, rootDir, buildDir, "  ")
 
 
 class BuildRule(BuildVarHost):
