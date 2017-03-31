@@ -442,6 +442,8 @@ class Build(BuildVarHost):
 
     print("[Build] Ninja exited with code %s" % (retcode))
 
+    return retcode
+
   def useRepo(self, repo):
     self._repo = repo
 
