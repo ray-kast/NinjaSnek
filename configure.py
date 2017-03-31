@@ -2,6 +2,7 @@
 
 import collections
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -127,6 +128,7 @@ class Build(BuildVarHost):
     self._rules = dict()
     self._targets = dict()
     self._defaults = set()
+    self._repo = None
 
     self._rules["phony"] = BuildPhonyRule(self)
 
@@ -211,8 +213,8 @@ class Build(BuildVarHost):
       if any([tgt in self._defaults for tgt in edge._targets]):
         stream.write(
             "%s\n" % "\n".join([
-                "default %s" % (tgt) for tgt in edge._targets
-                if tgt in self._defaults
+                "default %s" % (tgt)
+                for tgt in edge._targets if tgt in self._defaults
             ])
         )
 
@@ -228,6 +230,24 @@ class Build(BuildVarHost):
 
   def _keyValid(self, key):
     return key != "builddir"
+
+  def path(self, *args):
+    return BuildPath(os.path.join(*args))
+
+  def path_b(self, *args):
+    return BuildPath(os.path.join(*args), False)
+
+  def paths(self, *args):
+    return [
+        self.path(arg) if isinstance(arg, basestring) else self.path(*arg)
+        for arg in args
+    ]
+
+  def paths_b(self, *args):
+    return [
+        self.path_b(arg) if isinstance(arg, basestring) else self.path_b(*arg)
+        for arg in args
+    ]
 
   def rule(self, name, **kwargs):
     if name in self._rules:
@@ -299,7 +319,7 @@ class Build(BuildVarHost):
     ninjaDir = os.path.join(buildDir, "ninja")
     remCachePath = os.path.join(buildDir, ".bootstrap_head")
 
-    if testExe(ninjaPath):
+    if self._repo is None and testExe(ninjaPath):
       if os.path.exists(ninjaDir) and os.path.isdir(ninjaDir):
         print("[Build] Removing extraneous local copy of Ninja.")
 
@@ -328,41 +348,74 @@ class Build(BuildVarHost):
 
           return x
 
+        repo = self._repo or "git@github.com:ninja-build/ninja.git"
+
         subprocess.check_call(["git", "checkout", "master"], cwd = ninjaDir,
                               stdout = subprocess.PIPE,
                               stderr = subprocess.PIPE)
 
-        parseLoc = subprocess.Popen(["git", "rev-parse", "@"], cwd = ninjaDir,
+        getUpstream = subprocess.Popen(["git", "remote", "show"],
+                                       cwd = ninjaDir, stdout = subprocess.PIPE,
+                                       stderr = subprocess.PIPE)
+        upstream = unbytes(getUpstream.communicate()[0]).strip()
+
+        parseUrl = subprocess.Popen(["git", "remote", "-v"], cwd = ninjaDir,
                                     stdout = subprocess.PIPE,
                                     stderr = subprocess.PIPE)
-        locOut = str.strip(unbytes(parseLoc.communicate()[0]))
 
-        if (
-            os.path.exists(remCachePath) and
-            os.path.getmtime(remCachePath) >= time.time() - 86400
-        ):
-          with open(remCachePath) as fl:
-            remOut = str.strip(fl.read())
+        sameUpstream = False
+
+        for parts in [
+            re.match(r"(\S+)\s+(\S+)\s+\(([^\)]+)\)", line.strip()).groups()
+            for line in
+            re.split(r"\s", unbytes(parseUrl.communicate()[0]).strip())
+        ]:
+          if parts[0] == upstream and parts[2] == "fetch":
+            sameUpstream = parts[1] == self._repo
+            break
+
+        if sameUpstream:
+          parseLoc = subprocess.Popen(["git", "rev-parse", "@"], cwd = ninjaDir,
+                                      stdout = subprocess.PIPE,
+                                      stderr = subprocess.PIPE)
+          locOut = unbytes(parseLoc.communicate()[0]).strip()
+
+          if (
+              os.path.exists(remCachePath) and
+              os.path.getmtime(remCachePath) >= time.time() - 86400
+          ):
+            with open(remCachePath) as fl:
+              remOut = (fl.read()).strip()
+          else:
+            print("[Build] Checking if local Ninja is up-to-date...")
+
+            subprocess.check_call(["git", "fetch"], cwd = ninjaDir)
+
+            parseRem = subprocess.Popen(["git", "rev-parse", r"@{u}"],
+                                        cwd = ninjaDir,
+                                        stdout = subprocess.PIPE)
+            remOut = (unbytes(parseRem.communicate()[0])).strip()
+
+            with open(remCachePath, 'w') as fil:
+              fil.write(remOut)
+
+          print(
+              "[Build] Local commit: %s; remote commit: %s." % (locOut, remOut)
+          )
+
+          if locOut == remOut:
+            print("[Build] Local Ninja up-to-date.")
+          else:
+            print("[Build] Local Ninja out-of-date.  Updating from GitHub...")
+
+            subprocess.check_call(["git", "pull"], cwd = ninjaDir)
+
+            bootstrap = True
         else:
-          print("[Build] Checking if local Ninja is up-to-date...")
+          print("[Build] Local Ninja is from a different repo.  Re-cloning...")
 
-          subprocess.check_call(["git", "fetch"], cwd = ninjaDir)
-
-          parseRem = subprocess.Popen(["git", "rev-parse", r"@{u}"],
-                                      cwd = ninjaDir, stdout = subprocess.PIPE)
-          remOut = str.strip(unbytes(parseRem.communicate()[0]))
-
-          with open(remCachePath, 'w') as fil:
-            fil.write(remOut)
-
-        print("[Build] Local commit: %s; remote commit: %s." % (locOut, remOut))
-
-        if locOut == remOut:
-          print("[Build] Local Ninja up-to-date.")
-        else:
-          print("[Build] Local Ninja out-of-date.  Updating from GitHub...")
-
-          subprocess.check_call(["git", "pull"], cwd = ninjaDir)
+          shutil.rmtree(ninjaDir)
+          subprocess.check_call(["git", "clone", repo, ninjaDir])
 
           bootstrap = True
       else:
@@ -370,9 +423,7 @@ class Build(BuildVarHost):
             "[Build] No local version of Ninja found.  Cloning from GitHub..."
         )
 
-        subprocess.check_call([
-            "git", "clone", "git@github.com:ninja-build/ninja.git", ninjaDir
-        ])
+        subprocess.check_call(["git", "clone", repo, ninjaDir])
 
         bootstrap = True
 
@@ -393,23 +444,8 @@ class Build(BuildVarHost):
 
     print("[Build] Ninja exited with code %s" % (retcode))
 
-  def path(self, *args):
-    return BuildPath(os.path.join(*args))
-
-  def path_b(self, *args):
-    return BuildPath(os.path.join(*args), False)
-
-  def paths(self, *args):
-    return [
-        self.path(arg) if isinstance(arg, basestring) else self.path(*arg)
-        for arg in args
-    ]
-
-  def paths_b(self, *args):
-    return [
-        self.path_b(arg) if isinstance(arg, basestring) else self.path_b(*arg)
-        for arg in args
-    ]
+  def useRepo(self, repo):
+    self._repo = repo
 
 
 class BuildEdge(BuildVarHost):
