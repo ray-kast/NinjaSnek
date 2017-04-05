@@ -330,8 +330,10 @@ class Build(BuildVarHost):
         os.remove(remCachePath)
 
     else:
-      print("[Build] No installed version of Ninja found.  Looking for a local"
-      " version...")
+      print(
+          "[Build] No installed version of Ninja found.  Looking for a local"
+          " version..."
+      )
 
       ninjaPath = os.path.join(ninjaDir, "ninja")
       repo = self._repo or "git@github.com:ninja-build/ninja.git"
@@ -447,13 +449,26 @@ class Build(BuildVarHost):
   def useRepo(self, repo):
     self._repo = repo
 
-  def util(self, name, rule, deps, *args):
+  def util(self, name, rule, *args):
+    deps = None
     default = False
 
     if len(args) == 0: pass
-    elif len(args) == 1: default = args[0]
+    elif len(args) == 1:
+      if isinstance(
+          args[0],
+          (basestring, BuildPath, BuildDeps, collections.Iterable)
+      ):
+        deps = args[0]
+      else:
+        default = args[0]
+    elif len(args) == 2:
+      deps = args[0]
+      default = args[1]
     else:
       raise ValueError("Invalid arguments.")
+
+    if deps is None: deps = []
 
     if isinstance(deps, (basestring, BuildPath)):
       deps = BuildDeps((deps, ), (), ())
