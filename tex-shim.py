@@ -222,30 +222,30 @@ def main():
       if not proc.returncode:
         shutil.move(tmpoutfile, outfile)
 
-        if os.path.exists(builddir):
-          if not os.path.isdir(builddir):
-            print("Invalid build directory '%s'." % (builddir))
-            return 1
-        else:
-          os.makedirs(builddir)
+      if os.path.exists(builddir):
+        if not os.path.isdir(builddir):
+          print("Invalid build directory '%s'." % (builddir))
+          return 1
+      else:
+        os.makedirs(builddir)
 
-        def cprf(src, dst):
-          for fil in os.listdir(src):
-            frm = os.path.join(src, fil)
-            to = os.path.join(dst, fil)
+      def cprf(src, dst):
+        for fil in os.listdir(src):
+          frm = os.path.join(src, fil)
+          to = os.path.join(dst, fil)
 
-            if os.path.isdir(frm):
-              if os.path.exists(to):
-                if os.path.isdir(to): cprf(frm, to)
-                else: raise RuntimeError("Unexpected file '%s'" % (to))
-            elif os.path.isfile(frm):
-              if os.path.exists(to):
-                if os.path.isfile(to): os.remove(to)
-                else: raise RuntimeError("Unexpected directory '%s'" % (to))
+          if os.path.isdir(frm):
+            if os.path.exists(to):
+              if os.path.isdir(to): cprf(frm, to)
+              else: raise RuntimeError("Unexpected file '%s'" % (to))
+          elif os.path.isfile(frm):
+            if os.path.exists(to):
+              if os.path.isfile(to): os.remove(to)
+              else: raise RuntimeError("Unexpected directory '%s'" % (to))
 
-              shutil.copy(frm, to)
+            shutil.copy(frm, to)
 
-        cprf(tmpdir, builddir)
+      cprf(tmpdir, builddir)
     finally:
       os.chdir(oldwd)
   finally:
