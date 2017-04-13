@@ -28,10 +28,8 @@ class FlagTracker(object):
     self.n = 0
 
   def add(self, val):
-    self.n -= 1
-
-    if self.n < 0:
-      raise RuntimeError("Value limit exceeded.")
+    if self.n > 0: self.n -= 1
+    elif self.n == 0: raise RuntimeError("Value limit exceeded.")
 
     self.flag.vals.append(val)
 
@@ -42,6 +40,11 @@ def main():
        [None]),
       ("builddir", ["build-dir"], ["b"], [""]),
       ("args", ["args"], ["a"], [""]),
+      ("number", ["num"], ["n"], ["1"]),
+  ]
+
+  varFlagDesc = [
+    ("includes", ["include"], ["I"]),
   ]
 
   flagInf = dict()
@@ -69,6 +72,19 @@ def main():
     else:
       flag.vals = 0
 
+  for desc in varFlagDesc:
+    info = flagInf[desc[0]] = FlagInfo()
+    flag = flags[desc[0]] = Flag()
+
+    for name in desc[1]:
+      flagNames[name] = desc[0]
+
+    for name in desc[2]:
+      sFlagNames[name] = desc[0]
+
+    info.n = -1
+    flag.vals = list()
+
   def doFlag(name, flagDict, val = None):
     if flagTrk.n > 0:
       print("Expected value; got flag '%s'" % (name))
@@ -94,7 +110,7 @@ def main():
       info.n += 1
     else:
       flagTrk.flag = flag
-      flagTrk.n = info.n
+      flagTrk.n = 1 if info.n < 0 else info.n
 
       if val is not None: flagTrk.add(val)
 
@@ -154,6 +170,7 @@ def main():
 
   if flagTrk.n > 0:
     print("Missing flag parameters at end.")
+    return 1
 
   print("Flags: %s,\nArgs: %s" % (repr(flags), repr(args)))
 
@@ -169,14 +186,21 @@ def main():
     print("No output filename specified.")
     return 1
 
+  try:
+    number = int(flags["number"].vals[0])
+  except ValueError:
+    print("Invalid value for --num flag.")
+    return 1
+
   tname = "ts_tmp"
   while True:
     tmpdir = os.path.join(os.getcwd(), tname)
 
     try:
-      if not os.path.exists(tmpdir): os.makedirs(tmpdir)
+      if not os.path.exists(tmpdir):
+        os.makedirs(tmpdir)
 
-      break
+        break
     except OSError as e:
       print(str(e))
 
@@ -199,7 +223,11 @@ def main():
 
     builddir = os.path.join(cwd, flags["builddir"].vals[0])
 
-    shutil.copy(os.path.join(cwd, args[1]), infile)
+    os.symlink(os.path.join(cwd, args[1]), infile)
+
+    for inc in flags["includes"].vals:
+      print("%s -> %s" % (os.path.join(cwd, inc), os.path.join(tmpdir, inc)))
+      os.symlink(os.path.join(cwd, inc), os.path.join(tmpdir, inc))
 
     oldwd = cwd
     os.chdir(tmpdir)
@@ -214,13 +242,23 @@ def main():
 
       print("Process info: %s" % repr(procinf))
 
-      proc = subprocess.Popen(procinf, stdin=subprocess.PIPE)
-      proc.communicate()
+      for i in range(number):
+        print("Running iteration {}...".format(i + 1))
 
-      print("Command exited with code %i" % proc.returncode)
+        proc = subprocess.Popen(procinf, stdin=subprocess.PIPE)
+        proc.communicate()
+
+        print("Command exited with code %i" % proc.returncode)
+
+        if proc.returncode: break
 
       if not proc.returncode:
         shutil.move(tmpoutfile, outfile)
+
+      for inc in flags["includes"].vals:
+        print("X %s" % os.path.join(tmpdir, inc))
+        try: os.unlink(os.path.join(tmpdir, inc))
+        except OSError as e: print(str(e))
 
       if os.path.exists(builddir):
         if not os.path.isdir(builddir):
@@ -246,6 +284,8 @@ def main():
             shutil.copy(frm, to)
 
       cprf(tmpdir, builddir)
+
+      if proc.returncode: return proc.returncode
     finally:
       os.chdir(oldwd)
   finally:
