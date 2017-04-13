@@ -226,8 +226,17 @@ def main():
     os.symlink(os.path.join(cwd, args[1]), infile)
 
     for inc in flags["includes"].vals:
-      print("%s -> %s" % (os.path.join(cwd, inc), os.path.join(tmpdir, inc)))
-      os.symlink(os.path.join(cwd, inc), os.path.join(tmpdir, inc))
+      split = inc.split("=", 1)
+      frm = split[0]
+
+      if len(split) == 1: to = os.path.basename(frm)
+      else: to = split[1]
+
+      frm = os.path.join(cwd, frm)
+      to = os.path.join(tmpdir, to)
+
+      print("%s -> %s" % (frm, to))
+      os.symlink(frm, to)
 
     oldwd = cwd
     os.chdir(tmpdir)
