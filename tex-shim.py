@@ -237,6 +237,10 @@ def main():
       frm = os.path.join(cwd, frm)
       to = os.path.join(tmpdir, to)
 
+      if not os.path.exists(frm):
+        print("Include file {} not found.".format(frm))
+        return 1
+
       incs.append(to)
 
       print("%s -> %s" % (frm, to))
