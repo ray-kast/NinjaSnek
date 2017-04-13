@@ -225,6 +225,8 @@ def main():
 
     os.symlink(os.path.join(cwd, args[1]), infile)
 
+    incs = list()
+
     for inc in flags["includes"].vals:
       split = inc.split("=", 1)
       frm = split[0]
@@ -234,6 +236,8 @@ def main():
 
       frm = os.path.join(cwd, frm)
       to = os.path.join(tmpdir, to)
+
+      incs.append(to)
 
       print("%s -> %s" % (frm, to))
       os.symlink(frm, to)
@@ -264,9 +268,9 @@ def main():
       if not proc.returncode:
         shutil.move(tmpoutfile, outfile)
 
-      for inc in flags["includes"].vals:
-        print("X %s" % os.path.join(tmpdir, inc))
-        try: os.unlink(os.path.join(tmpdir, inc))
+      for inc in incs:
+        print("X %s" % inc)
+        try: os.unlink(inc)
         except OSError as e: print(str(e))
 
       if os.path.exists(builddir):
