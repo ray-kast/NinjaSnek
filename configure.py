@@ -164,7 +164,11 @@ class Build(BuildVarHost):
     if isinstance(deps, (basestring, BuildPath)):
       deps = BuildDeps((deps, ), (), ())
 
-    if not isinstance(deps, BuildDeps): deps = BuildDeps(deps, (), ())
+    if not isinstance(deps, BuildDeps):
+      if len(deps) == 3 and not any([d is basestring for d in deps]):
+        deps = BuildDeps(*deps)
+      else:
+        deps = BuildDeps(deps, (), ())
 
     targetset = frozenset(
         [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in targets]
