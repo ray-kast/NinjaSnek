@@ -49,9 +49,26 @@ class BuildPath(object):
 
 
 class BuildDeps(object):
-  def __init__(self, deps, implicit = None, order = None):
+  @staticmethod
+  def create(obj, out):
+    if isinstance(obj, BuildDeps): return obj
+
+    if isinstance(obj, (basestring, BuildPath)):
+      return BuildDeps(out, (obj, ))
+
+    if not any([isinstance(o, (basestring, BuildPath)) for o in obj]):
+      return BuildDeps(out, *obj)
+
+    return BuildDeps(out, obj)
+
+  def __init__(self, out, deps, implicit = None, order = None):
+    self._out = out
     self._deps = frozenset(deps or ())
     self._implicit = frozenset(implicit or ())
+
+    if out and order is not None:
+      raise ValueError("Cannot have order-only outputs.")
+
     self._order = frozenset(order or ())
 
   def _emit(self, stream, rootDir, buildDir):
@@ -134,7 +151,7 @@ class Build(BuildVarHost):
     self._rules["phony"] = BuildPhonyRule(self)
 
   def deps(self, *args):
-    return BuildDeps(*args)
+    return BuildDeps(False, *args)
 
   # edge(targets, [rule,] deps, [default])
   def edge(self, *args):
@@ -160,18 +177,11 @@ class Build(BuildVarHost):
     else:
       raise ValueError("Invalid arguments.")
 
-    if isinstance(targets, (basestring, BuildPath)): targets = targets,
-    if isinstance(deps, (basestring, BuildPath)):
-      deps = BuildDeps((deps, ), (), ())
-
-    if not isinstance(deps, BuildDeps):
-      if len(deps) == 3 and not any([d is basestring for d in deps]):
-        deps = BuildDeps(*deps)
-      else:
-        deps = BuildDeps(deps, (), ())
+    targets = BuildDeps.create(targets, True)
+    deps = BuildDeps.create(deps, False)
 
     targetset = frozenset(
-        [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in targets]
+        [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in targets._deps]
     )
 
     if targetset in self._edges:
@@ -233,6 +243,9 @@ class Build(BuildVarHost):
 
   def _keyValid(self, key):
     return key != "builddir"
+
+  def outs(self, *args):
+    return BuildDeps(True, *args)
 
   def path(self, *args):
     return BuildPath(os.path.join(*args))
@@ -453,7 +466,7 @@ class Build(BuildVarHost):
   def useRepo(self, repo):
     self._repo = repo
 
-  def util(self, name, rule, *args):
+  def util(self, targets, rule, *args):
     deps = None
     default = False
 
@@ -472,18 +485,18 @@ class Build(BuildVarHost):
     else:
       raise ValueError("Invalid arguments.")
 
-    if deps is None: deps = []
+    targets = BuildDeps.create(targets, True)
 
-    if isinstance(deps, (basestring, BuildPath)):
-      deps = BuildDeps((deps, ), (), ())
+    deps = BuildDeps.create(deps, False)
 
-    if not isinstance(deps, BuildDeps): deps = BuildDeps(deps, (), ())
+    if len(targets._deps) != 0:
+      raise ValueError("Util edges can only have one name.")
 
-    if name in self._utils:
+    if targets._deps[0] in self._utils:
       raise ValueError("Util name already registered.")
 
     idx = len(self._utils)
-    self._utils.append(BuildUtil(name, rule, deps))
+    self._utils.append(BuildUtil(targets, rule, deps))
 
     if default: self._defaults.add(self._utils[idx])
 
@@ -498,13 +511,17 @@ class BuildEdge(BuildVarHost):
   def __init__(self, build, targets, deps):
     BuildVarHost.__init__(self)
     self._build = build
-    self._targets = frozenset(targets)
+    self._targets = targets
     self._deps = deps
     self._rule = None
 
   def _emit(self, stream, rootDir, buildDir):
+    stream.write("build ")
+
+    self._targets._emit(stream, rootDir, buildDir)
+
     stream.write(
-        "build %s: %s " % (self.expandName(rootDir, buildDir), self._getRule())
+        ": %s " % (self._getRule())
     )
 
     self._deps._emit(stream, rootDir, buildDir)
@@ -513,21 +530,17 @@ class BuildEdge(BuildVarHost):
 
     self._emitVars(stream, rootDir, buildDir, "  ")
 
-  def expandName(self, rootDir, buildDir):
-    return " ".join([
-        BuildPath.expand(tgt, rootDir, buildDir) for tgt in self._targets
-    ])
-
   def _getRule(self):
     if self._rule is not None: return self._rule
 
-    targetset = frozenset(
-        [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in self._targets]
-    )
+    targetset = frozenset([
+        os.path.splitext(BuildPath.extract(tgt))[1]
+        for tgt in self._targets._deps
+    ])
 
     if targetset not in self._build._targets:
       raise LookupError(
-          "No rule found matching target set %s" % repr(targetset)
+          "No rule found matching target set %s" % ", ".join(targetset)
       )
 
     depset = frozenset([
@@ -542,7 +555,7 @@ class BuildEdge(BuildVarHost):
     if name is None:
       raise LookupError(
           "No rule found to build %s from %s" %
-          (repr(self._targets), repr(self._deps._deps))
+          (", ".join(self._targets._targets), ", ".join(self._deps._deps))
       )
 
     return self._build._rules[name]
@@ -557,23 +570,24 @@ class BuildEdge(BuildVarHost):
 
 
 class BuildUtil(BuildVarHost):
-  def __init__(self, name, rule, deps):
+  def __init__(self, targets, rule, deps):
     BuildVarHost.__init__(self)
-    self._name = name
+    self._targets = targets
     self._rule = rule
     self._deps = deps
 
   def _emit(self, stream, rootDir, buildDir):
-    stream.write("util %s: %s " % (self._name, self._rule))
+    stream.write("util ")
+
+    self._targets._emit(stream, rootDir, buildDir)
+
+    stream.write(": %s " % (self._rule))
 
     self._deps._emit(stream, rootDir, buildDir)
 
     stream.write("\n")
 
     self._emitVars(stream, rootDir, buildDir, "  ")
-
-  def expandName(self, rootDir, buildDir):
-    return self._name
 
 
 class BuildRule(BuildVarHost):
