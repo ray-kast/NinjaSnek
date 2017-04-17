@@ -299,7 +299,6 @@ class Build(BuildVarHost):
     return rule
 
   def run(self, rootDir, buildDir, *args):
-    rootDir = os.path.join(os.getcwd(), rootDir)
     buildDir = os.path.join(rootDir, buildDir)
     buildFile = os.path.join(buildDir, "build.ninja")
 
