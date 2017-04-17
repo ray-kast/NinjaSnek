@@ -1,6 +1,7 @@
 """Build configuration stuff."""
 
 import collections
+import logging as l
 import os
 import re
 import shutil
@@ -179,13 +180,6 @@ class Build(BuildVarHost):
     targets = BuildDeps.create(targets, True)
     deps = BuildDeps.create(deps, False)
 
-    targetset = frozenset(
-      [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in targets._deps]
-    )
-
-    if targetset in self._edges:
-      raise ValueError("Target set already registered.")
-
     idx = len(self._edges)
     self._edges.append(BuildEdge(self, targets, deps))
 
@@ -288,13 +282,14 @@ class Build(BuildVarHost):
       ]):
         raise ValueError("Target format invalid")
 
-      target = BuildTarget()
       targetset = frozenset(targets)
 
-      if targetset in self._targets:
-        raise ValueError("Target set already registered.")
-
-      self._targets[targetset] = target
+      # EAFP is dumb and deserves to burn in hell
+      try:
+        target = self._targets[targetset]
+      except KeyError:
+        target = BuildTarget()
+        self._targets[targetset] = target
 
       target.setRule(frozenset(deps), name)
 
@@ -338,18 +333,18 @@ class Build(BuildVarHost):
 
     if self._repo is None and testExe(ninjaPath):
       if os.path.exists(ninjaDir) and os.path.isdir(ninjaDir):
-        print("[Build] Removing extraneous local copy of Ninja.")
+        l.info("Removing extraneous local copy of Ninja.")
 
         shutil.rmtree(ninjaDir)
 
       if os.path.exists(remCachePath) and os.path.isfile(remCachePath):
-        print("[Build] Removing extraneous cache file.")
+        l.info("Removing extraneous cache file.")
 
         os.remove(remCachePath)
 
     else:
-      print(
-        "[Build] No installed version of Ninja found.  Looking for a local"
+      l.info(
+        "No installed version of Ninja found.  Looking for a local"
         " version..."
       )
 
@@ -358,7 +353,7 @@ class Build(BuildVarHost):
       bootstrap = False
 
       if testExe(ninjaPath):
-        print("[Build] Local version found.")
+        l.info("Local version found.")
 
         def unbytes(x):
           if isinstance(x, bytes):
@@ -409,7 +404,7 @@ class Build(BuildVarHost):
             with open(remCachePath) as fl:
               remOut = (fl.read()).strip()
           else:
-            print("[Build] Checking if local Ninja is up-to-date...")
+            l.info("Checking if local Ninja is up-to-date...")
 
             subprocess.check_call(["git", "fetch"], cwd = ninjaDir)
 
@@ -421,28 +416,28 @@ class Build(BuildVarHost):
             with open(remCachePath, 'w') as fil:
               fil.write(remOut)
 
-          print(
-            "[Build] Local commit: %s; remote commit: %s." % (locOut, remOut)
+          l.info(
+            "Local commit: %s; remote commit: %s." % (locOut, remOut)
           )
 
           if locOut == remOut:
-            print("[Build] Local Ninja up-to-date.")
+            l.info("Local Ninja up-to-date.")
           else:
-            print("[Build] Local Ninja out-of-date.  Updating from GitHub...")
+            l.info("Local Ninja out-of-date.  Updating from GitHub...")
 
             subprocess.check_call(["git", "pull"], cwd = ninjaDir)
 
             bootstrap = True
         else:
-          print("[Build] Local Ninja is from a different repo.  Re-cloning...")
+          l.info("Local Ninja is from a different repo.  Re-cloning...")
 
           shutil.rmtree(ninjaDir)
           subprocess.check_call(["git", "clone", repo, ninjaDir])
 
           bootstrap = True
       else:
-        print(
-          "[Build] No local version of Ninja found.  Cloning from GitHub..."
+        l.info(
+          "No local version of Ninja found.  Cloning from GitHub..."
         )
 
         subprocess.check_call(["git", "clone", repo, ninjaDir])
@@ -450,7 +445,7 @@ class Build(BuildVarHost):
         bootstrap = True
 
       if bootstrap:
-        print("[Build] Bootstrapping local Ninja...")
+        l.info("Bootstrapping local Ninja...")
 
         subprocess.check_call([
           sys.executable, os.path.join(ninjaDir, "configure.py"), "--bootstrap"
@@ -460,11 +455,11 @@ class Build(BuildVarHost):
     procinfo = [ninjaPath, "-f", buildFile]
     procinfo.extend(args)
 
-    print(" ".join(procinfo))
+    l.info(" ".join(procinfo))
 
     retcode = subprocess.call(procinfo)
 
-    print("[Build] Ninja exited with code %s" % (retcode))
+    l.info("Ninja exited with code %s" % (retcode))
 
     return retcode
 
