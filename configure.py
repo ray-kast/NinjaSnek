@@ -38,7 +38,7 @@ class BuildPath(object):
 
   def __eq__(self, rhs):
     return rhs and isinstance(
-        rhs, BuildPath
+      rhs, BuildPath
     ) and self._value == rhs._value and self._atRoot == rhs._atRoot
 
   def __ne__(self, rhs):
@@ -76,21 +76,21 @@ class BuildDeps(object):
 
     if len(self._deps):
       parts.extend([
-          BuildPath.expand(dep, rootDir, buildDir) for dep in self._deps
+        BuildPath.expand(dep, rootDir, buildDir) for dep in self._deps
       ])
 
     if len(self._implicit):
       parts.append("|")
 
       parts.extend([
-          BuildPath.expand(dep, rootDir, buildDir) for dep in self._implicit
+        BuildPath.expand(dep, rootDir, buildDir) for dep in self._implicit
       ])
 
     if len(self._order):
       parts.append("||")
 
       parts.extend([
-          BuildPath.expand(dep, rootDir, buildDir) for dep in self._order
+        BuildPath.expand(dep, rootDir, buildDir) for dep in self._order
       ])
 
     stream.write(" ".join(parts))
@@ -105,8 +105,7 @@ class BuildVarHost(object):
 
   def _emitVar(self, stream, rootDir, buildDir, key, value, prefix):
     stream.write(
-        "%s%s = %s\n" %
-        (prefix, key, BuildPath.expand(value, rootDir, buildDir))
+      "%s%s = %s\n" % (prefix, key, BuildPath.expand(value, rootDir, buildDir))
     )
 
   def _emitVars(self, stream, rootDir, buildDir, prefix, specials = None):
@@ -164,7 +163,7 @@ class Build(BuildVarHost):
     elif len(args) == 3:
       if isinstance(
           args[2],
-          (basestring, BuildPath, BuildDeps, collections.Iterable)
+        (basestring, BuildPath, BuildDeps, collections.Iterable)
       ):
         rule = deps
         deps = args[2]
@@ -181,7 +180,7 @@ class Build(BuildVarHost):
     deps = BuildDeps.create(deps, False)
 
     targetset = frozenset(
-        [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in targets._deps]
+      [os.path.splitext(BuildPath.extract(tgt))[1] for tgt in targets._deps]
     )
 
     if targetset in self._edges:
@@ -208,7 +207,7 @@ class Build(BuildVarHost):
 
     if self._emitVars(
         stream, rootDir, buildDir, "",
-        {rootdirName: rootDir, builddirName: buildDir}
+      {rootdirName: rootDir, builddirName: buildDir}
     ):
       stream.write("\n")
 
@@ -233,12 +232,12 @@ class Build(BuildVarHost):
 
     if len(self._defaults):
       stream.write(
-          "\ndefault %s\n" % (
-              " ".join([
-                  edge.expandName(rootdirName, builddirName)
-                  for edge in self._defaults
-              ])
-          )
+        "\ndefault %s\n" % (
+          " ".join([
+            BuildPath.expand(name, rootDir, buildDir)
+            for edge in self._defaults for name in edge._targets._deps
+          ])
+        )
       )
 
   def _keyValid(self, key):
@@ -255,14 +254,14 @@ class Build(BuildVarHost):
 
   def paths(self, *args):
     return [
-        self.path(arg) if isinstance(arg, basestring) else self.path(*arg)
-        for arg in args
+      self.path(arg) if isinstance(arg, basestring) else self.path(*arg)
+      for arg in args
     ]
 
   def paths_b(self, *args):
     return [
-        self.path_b(arg) if isinstance(arg, basestring) else self.path_b(*arg)
-        for arg in args
+      self.path_b(arg) if isinstance(arg, basestring) else self.path_b(*arg)
+      for arg in args
     ]
 
   def rule(self, name, **kwargs):
@@ -323,8 +322,10 @@ class Build(BuildVarHost):
     def testExe(path):
       try:
         with open(os.devnull) as devnull:
-          subprocess.call([path, "--version"], stdin = devnull,
-                          stdout = devnull, stderr = devnull)
+          subprocess.call([path, "--version"],
+                          stdin = devnull,
+                          stdout = devnull,
+                          stderr = devnull)
 
         return True
       except OSError as e:
@@ -348,8 +349,8 @@ class Build(BuildVarHost):
 
     else:
       print(
-          "[Build] No installed version of Ninja found.  Looking for a local"
-          " version..."
+        "[Build] No installed version of Ninja found.  Looking for a local"
+        " version..."
       )
 
       ninjaPath = os.path.join(ninjaDir, "ninja")
@@ -365,16 +366,19 @@ class Build(BuildVarHost):
 
           return x
 
-        subprocess.check_call(["git", "checkout", "master"], cwd = ninjaDir,
+        subprocess.check_call(["git", "checkout", "master"],
+                              cwd = ninjaDir,
                               stdout = subprocess.PIPE,
                               stderr = subprocess.PIPE)
 
         getUpstream = subprocess.Popen(["git", "remote", "show"],
-                                       cwd = ninjaDir, stdout = subprocess.PIPE,
+                                       cwd = ninjaDir,
+                                       stdout = subprocess.PIPE,
                                        stderr = subprocess.PIPE)
         upstream = unbytes(getUpstream.communicate()[0]).strip()
 
-        parseUrl = subprocess.Popen(["git", "remote", "-v"], cwd = ninjaDir,
+        parseUrl = subprocess.Popen(["git", "remote", "-v"],
+                                    cwd = ninjaDir,
                                     stdout = subprocess.PIPE,
                                     stderr = subprocess.PIPE)
         remoteInfo = unbytes(parseUrl.communicate()[0]).strip()
@@ -392,7 +396,8 @@ class Build(BuildVarHost):
             break
 
         if sameUpstream:
-          parseLoc = subprocess.Popen(["git", "rev-parse", "@"], cwd = ninjaDir,
+          parseLoc = subprocess.Popen(["git", "rev-parse", "@"],
+                                      cwd = ninjaDir,
                                       stdout = subprocess.PIPE,
                                       stderr = subprocess.PIPE)
           locOut = unbytes(parseLoc.communicate()[0]).strip()
@@ -417,7 +422,7 @@ class Build(BuildVarHost):
               fil.write(remOut)
 
           print(
-              "[Build] Local commit: %s; remote commit: %s." % (locOut, remOut)
+            "[Build] Local commit: %s; remote commit: %s." % (locOut, remOut)
           )
 
           if locOut == remOut:
@@ -437,7 +442,7 @@ class Build(BuildVarHost):
           bootstrap = True
       else:
         print(
-            "[Build] No local version of Ninja found.  Cloning from GitHub..."
+          "[Build] No local version of Ninja found.  Cloning from GitHub..."
         )
 
         subprocess.check_call(["git", "clone", repo, ninjaDir])
@@ -448,9 +453,9 @@ class Build(BuildVarHost):
         print("[Build] Bootstrapping local Ninja...")
 
         subprocess.check_call([
-            sys.executable, os.path.join(ninjaDir, "configure.py"),
-            "--bootstrap"
-        ], cwd = ninjaDir)
+          sys.executable, os.path.join(ninjaDir, "configure.py"), "--bootstrap"
+        ],
+                              cwd = ninjaDir)
 
     procinfo = [ninjaPath, "-f", buildFile]
     procinfo.extend(args)
@@ -474,7 +479,7 @@ class Build(BuildVarHost):
     elif len(args) == 1:
       if isinstance(
           args[0],
-          (basestring, BuildPath, BuildDeps, collections.Iterable)
+        (basestring, BuildPath, BuildDeps, collections.Iterable)
       ):
         deps = args[0]
       else:
@@ -520,9 +525,7 @@ class BuildEdge(BuildVarHost):
 
     self._targets._emit(stream, rootDir, buildDir)
 
-    stream.write(
-        ": %s " % (self._getRule())
-    )
+    stream.write(": %s " % (self._getRule()))
 
     self._deps._emit(stream, rootDir, buildDir)
 
@@ -534,17 +537,16 @@ class BuildEdge(BuildVarHost):
     if self._rule is not None: return self._rule
 
     targetset = frozenset([
-        os.path.splitext(BuildPath.extract(tgt))[1]
-        for tgt in self._targets._deps
+      os.path.splitext(BuildPath.extract(tgt))[1] for tgt in self._targets._deps
     ])
 
     if targetset not in self._build._targets:
       raise LookupError(
-          "No rule found matching target set %s" % ", ".join(targetset)
+        "No rule found matching target set %s" % ", ".join(targetset)
       )
 
     depset = frozenset([
-        os.path.splitext(BuildPath.extract(dep))[1] for dep in self._deps._deps
+      os.path.splitext(BuildPath.extract(dep))[1] for dep in self._deps._deps
     ])
 
     return self._build._targets[targetset].getRule(depset)
@@ -554,8 +556,8 @@ class BuildEdge(BuildVarHost):
 
     if name is None:
       raise LookupError(
-          "No rule found to build %s from %s" %
-          (", ".join(self._targets._targets), ", ".join(self._deps._deps))
+        "No rule found to build %s from %s" %
+        (", ".join(self._targets._targets), ", ".join(self._deps._deps))
       )
 
     return self._build._rules[name]

@@ -36,11 +36,11 @@ class FlagTracker(object):
 
 def main():
   flagDesc = [
-      ("output", ["output"], ["o"],
-       [None]),
-      ("builddir", ["build-dir"], ["b"], [""]),
-      ("args", ["args"], ["a"], [""]),
-      ("number", ["num"], ["n"], ["1"]),
+    ("output", ["output"], ["o"],
+     [None]),
+    ("builddir", ["build-dir"], ["b"], [""]),
+    ("args", ["args"], ["a"], [""]),
+    ("number", ["num"], ["n"], ["1"]),
   ]
 
   varFlagDesc = [
@@ -210,13 +210,12 @@ def main():
     cwd = os.getcwd()
 
     infile = os.path.join(
-        tmpdir, "%s.tex" %
-        (os.path.splitext(os.path.basename(flags["output"].vals[0]))[0])
+      tmpdir, "%s.tex" %
+      (os.path.splitext(os.path.basename(flags["output"].vals[0]))[0])
     )
 
     tmpoutfile = "%s%s" % (
-        os.path.splitext(infile)[0],
-        os.path.splitext(flags["output"].vals[0])[1]
+      os.path.splitext(infile)[0], os.path.splitext(flags["output"].vals[0])[1]
     )
 
     outfile = os.path.join(cwd, flags["output"].vals[0])
@@ -253,7 +252,7 @@ def main():
     try:
       procinf = [args[0]]
       procinf.extend([
-          arg for arg in flags["args"].vals[0].split(",") if arg.split() != ""
+        arg for arg in flags["args"].vals[0].split(",") if arg.split() != ""
       ])
       procinf.append(infile)
 
@@ -262,7 +261,7 @@ def main():
       for i in range(number):
         print("Running iteration {}...".format(i + 1))
 
-        proc = subprocess.Popen(procinf, stdin=subprocess.PIPE)
+        proc = subprocess.Popen(procinf, stdin = subprocess.PIPE)
         proc.communicate()
 
         print("Command exited with code %i" % proc.returncode)
@@ -274,8 +273,10 @@ def main():
 
       for inc in incs:
         print("X %s" % inc)
-        try: os.unlink(inc)
-        except OSError as e: print(str(e))
+        try:
+          os.unlink(inc)
+        except OSError as e:
+          print(str(e))
 
       if os.path.exists(builddir):
         if not os.path.isdir(builddir):
