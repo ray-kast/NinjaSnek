@@ -228,7 +228,7 @@ class Build(BuildVarHost):
       stream.write(
         "\ndefault %s\n" % (
           " ".join([
-            BuildPath.expand(name, rootDir, buildDir)
+            BuildPath.expand(name, rootdirName, builddirName)
             for edge in self._defaults for name in edge._targets._deps
           ])
         )
