@@ -415,9 +415,7 @@ class Build(BuildVarHost):
             with open(remCachePath, 'w') as fil:
               fil.write(remOut)
 
-          l.info(
-            "Local commit: %s; remote commit: %s." % (locOut, remOut)
-          )
+          l.info("Local commit: %s; remote commit: %s." % (locOut, remOut))
 
           if locOut == remOut:
             l.info("Local Ninja up-to-date.")
@@ -435,9 +433,9 @@ class Build(BuildVarHost):
 
           bootstrap = True
       else:
-        l.info(
-          "No local version of Ninja found.  Cloning from GitHub..."
-        )
+        l.info("No local version of Ninja found.  Cloning from GitHub...")
+
+        if os.path.exists(ninjaDir): shutil.rmtree(ninjaDir)
 
         subprocess.check_call(["git", "clone", repo, ninjaDir])
 
@@ -447,7 +445,8 @@ class Build(BuildVarHost):
         l.info("Bootstrapping local Ninja...")
 
         subprocess.check_call([
-          sys.executable, os.path.join(ninjaDir, "configure.py"), "--bootstrap"
+          sys.executable, os.path.join(os.getcwd(), ninjaDir, "configure.py"),
+          "--bootstrap"
         ],
                               cwd = ninjaDir)
 
