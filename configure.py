@@ -549,8 +549,10 @@ class BuildEdge(BuildVarHost):
 
     if name is None:
       raise LookupError(
-        "No rule found to build %s from %s" %
-        (", ".join(self._targets._targets), ", ".join(self._deps._deps))
+        "No rule found to build %s from %s" % (
+          ", ".join(BuildPath.extract(dep) for dep in self._targets._deps),
+          ", ".join(BuildPath.extract(dep) for dep in self._deps._deps)
+        )
       )
 
     return self._build._rules[name]
