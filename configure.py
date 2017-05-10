@@ -487,10 +487,11 @@ class Build(BuildVarHost):
 
     deps = BuildDeps.create(deps, False)
 
-    if len(targets._deps) != 0:
+    if len(targets._deps) != 1:
       raise ValueError("Util edges can only have one name.")
 
-    if targets._deps[0] in self._utils:
+    # Quite possibly the dumbest thing ever
+    if list(targets._deps)[0] in self._utils:
       raise ValueError("Util name already registered.")
 
     idx = len(self._utils)
