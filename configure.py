@@ -1,7 +1,7 @@
 """Build configuration stuff."""
 
 import collections
-import logging as l
+import logging
 import os
 import re
 import shutil
@@ -299,6 +299,8 @@ class Build(BuildVarHost):
     return rule
 
   def run(self, rootDir, buildDir, *args):
+    l = logging.getLogger().getChild("NinjaSnek")
+
     buildDir = os.path.join(rootDir, buildDir)
     buildFile = os.path.join(buildDir, "build.ninja")
 
@@ -342,17 +344,17 @@ class Build(BuildVarHost):
         os.remove(remCachePath)
 
     else:
-      l.info(
-        "No installed version of Ninja found.  Looking for a local"
-        " version..."
-      )
+      l.debug((
+        "No installed version of Ninja found."
+        if self._repo is None else "Ninja repo specified."
+      ) + "  Looking for a local version...")
 
       ninjaPath = os.path.join(ninjaDir, "ninja")
       repo = self._repo or "git@github.com:ninja-build/ninja.git"
       bootstrap = False
 
       if testExe(ninjaPath):
-        l.info("Local version found.")
+        l.debug("Local version found.")
 
         def unbytes(x):
           if isinstance(x, bytes):
@@ -403,7 +405,7 @@ class Build(BuildVarHost):
             with open(remCachePath) as fl:
               remOut = (fl.read()).strip()
           else:
-            l.info("Checking if local Ninja is up-to-date...")
+            l.debug("Checking if local Ninja is up-to-date...")
 
             subprocess.check_call(["git", "fetch"], cwd = ninjaDir)
 
@@ -415,10 +417,10 @@ class Build(BuildVarHost):
             with open(remCachePath, 'w') as fil:
               fil.write(remOut)
 
-          l.info("Local commit: %s; remote commit: %s." % (locOut, remOut))
+          l.debug("Local commit: %s; remote commit: %s." % (locOut, remOut))
 
           if locOut == remOut:
-            l.info("Local Ninja up-to-date.")
+            l.debug("Local Ninja up-to-date.")
           else:
             l.info("Local Ninja out-of-date.  Updating from GitHub...")
 
