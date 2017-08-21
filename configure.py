@@ -280,6 +280,10 @@ class Build(BuildVarHost):
         [tgt if tgt.startswith(".") else ".{}".format(tgt) for tgt in targets]
       )
 
+      depset = frozenset(
+        [dep if dep.startswith(".") else ".{}".format(dep) for dep in deps]
+      )
+
       # EAFP is dumb and deserves to burn in hell
       try:
         target = self._targets[targetset]
@@ -543,7 +547,7 @@ class BuildEdge(BuildVarHost):
     if self._rule is not None: return self._rule
 
     targetset = frozenset([
-      os.path.splitext(BuildPath.extract(tgt))[1] for tgt in self._targets._deps
+      re.sub("^[^\.]+", "", BuildPath.extract(tgt)) for tgt in self._targets._deps
     ])
 
     if targetset not in self._build._targets:
@@ -552,7 +556,7 @@ class BuildEdge(BuildVarHost):
       )
 
     depset = frozenset([
-      os.path.splitext(BuildPath.extract(dep))[1] for dep in self._deps._deps
+      re.sub("^[^\.]+", "", BuildPath.extract(dep)) for dep in self._deps._deps
     ])
 
     return self._build._targets[targetset].getRule(depset)
