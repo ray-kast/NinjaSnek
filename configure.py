@@ -276,13 +276,9 @@ class Build(BuildVarHost):
       if isinstance(targets, (basestring, BuildPath)): targets = targets,
       if isinstance(deps, (basestring, BuildPath)): deps = deps,
 
-      if not all([
-          tgt == os.path.splitext("_" + BuildPath.extract(tgt))[1]
-          for tgt in targets
-      ]):
-        raise ValueError("Target format invalid")
-
-      targetset = frozenset(targets)
+      targetset = frozenset(
+        [tgt if tgt.startswith(".") else ".{}".format(tgt) for tgt in targets]
+      )
 
       # EAFP is dumb and deserves to burn in hell
       try:
@@ -330,127 +326,141 @@ class Build(BuildVarHost):
         return False
 
     ninjaDir = os.path.join(buildDir, "ninja")
-    remCachePath = os.path.join(buildDir, ".bootstrap_head")
 
-    if self._repo is None and testExe(ninjaPath):
-      if os.path.exists(ninjaDir) and os.path.isdir(ninjaDir):
-        l.info("Removing extraneous local copy of Ninja.")
+    def doGitStuff(pythonSucks):
+      remCachePath = os.path.join(buildDir, ".bootstrap_head")
 
-        shutil.rmtree(ninjaDir)
+      if self._repo is None and testExe(ninjaPath):
+        if os.path.exists(ninjaDir) and os.path.isdir(ninjaDir):
+          l.info("Removing extraneous local copy of Ninja.")
 
-      if os.path.exists(remCachePath) and os.path.isfile(remCachePath):
-        l.info("Removing extraneous cache file.")
+          shutil.rmtree(ninjaDir)
 
-        os.remove(remCachePath)
+        if os.path.exists(remCachePath) and os.path.isfile(remCachePath):
+          l.info("Removing extraneous cache file.")
 
-    else:
-      l.debug((
-        "No installed version of Ninja found."
-        if self._repo is None else "Ninja repo specified."
-      ) + "  Looking for a local version...")
+          os.remove(remCachePath)
 
-      ninjaPath = os.path.join(ninjaDir, "ninja")
-      repo = self._repo or "git@github.com:ninja-build/ninja.git"
-      bootstrap = False
+      else:
+        l.debug((
+          "No installed version of Ninja found."
+          if self._repo is None else "Ninja repo specified."
+        ) + "  Looking for a local version...")
 
-      if testExe(ninjaPath):
-        l.debug("Local version found.")
+        pythonSucks[0] = ninjaPath = os.path.join(ninjaDir, "ninja")
+        repo = self._repo or "git@github.com:ninja-build/ninja.git"
+        bootstrap = False
 
-        def unbytes(x):
-          if isinstance(x, bytes):
-            return str(x.decode('ascii'))
+        if testExe(ninjaPath):
+          l.debug("Local version found.")
 
-          return x
+          def unbytes(x):
+            if isinstance(x, bytes):
+              return str(x.decode('ascii'))
 
-        subprocess.check_call(["git", "checkout", "master"],
-                              cwd = ninjaDir,
-                              stdout = subprocess.PIPE,
-                              stderr = subprocess.PIPE)
+            return x
 
-        getUpstream = subprocess.Popen(["git", "remote", "show"],
-                                       cwd = ninjaDir,
-                                       stdout = subprocess.PIPE,
-                                       stderr = subprocess.PIPE)
-        upstream = unbytes(getUpstream.communicate()[0]).strip()
+          subprocess.check_call(["git", "checkout", "master"],
+                                cwd = ninjaDir,
+                                stdout = subprocess.PIPE,
+                                stderr = subprocess.PIPE)
 
-        parseUrl = subprocess.Popen(["git", "remote", "-v"],
-                                    cwd = ninjaDir,
-                                    stdout = subprocess.PIPE,
-                                    stderr = subprocess.PIPE)
-        remoteInfo = unbytes(parseUrl.communicate()[0]).strip()
+          getUpstream = subprocess.Popen(["git", "remote", "show"],
+                                         cwd = ninjaDir,
+                                         stdout = subprocess.PIPE,
+                                         stderr = subprocess.PIPE)
+          upstream = unbytes(getUpstream.communicate()[0]).strip()
 
-        sameUpstream = False
-
-        def parseRemotes():
-          for line in remoteInfo.split("\n"):
-            match = re.match(r"(\S+)\s+(\S+)\s+\(([^)]+)\)", line.strip())
-            if match is not None: yield match.groups()
-
-        for parts in parseRemotes():
-          if parts[0] == upstream and parts[2] == "fetch":
-            sameUpstream = parts[1] == self._repo
-            break
-
-        if sameUpstream:
-          parseLoc = subprocess.Popen(["git", "rev-parse", "@"],
+          parseUrl = subprocess.Popen(["git", "remote", "-v"],
                                       cwd = ninjaDir,
                                       stdout = subprocess.PIPE,
                                       stderr = subprocess.PIPE)
-          locOut = unbytes(parseLoc.communicate()[0]).strip()
+          remoteInfo = unbytes(parseUrl.communicate()[0]).strip()
 
-          if (
-              os.path.exists(remCachePath) and
-              os.path.getmtime(remCachePath) >= time.time() - 86400
-          ):
-            with open(remCachePath) as fl:
-              remOut = (fl.read()).strip()
-          else:
-            l.debug("Checking if local Ninja is up-to-date...")
+          sameUpstream = False
 
-            subprocess.check_call(["git", "fetch"], cwd = ninjaDir)
+          def parseRemotes():
+            for line in remoteInfo.split("\n"):
+              match = re.match(r"(\S+)\s+(\S+)\s+\(([^)]+)\)", line.strip())
+              if match is not None: yield match.groups()
 
-            parseRem = subprocess.Popen(["git", "rev-parse", r"@{u}"],
+          for parts in parseRemotes():
+            if parts[0] == upstream and parts[2] == "fetch":
+              sameUpstream = parts[1] == self._repo
+              break
+
+          if sameUpstream:
+            parseLoc = subprocess.Popen(["git", "rev-parse", "@"],
                                         cwd = ninjaDir,
-                                        stdout = subprocess.PIPE)
-            remOut = (unbytes(parseRem.communicate()[0])).strip()
+                                        stdout = subprocess.PIPE,
+                                        stderr = subprocess.PIPE)
+            locOut = unbytes(parseLoc.communicate()[0]).strip()
 
-            with open(remCachePath, 'w') as fil:
-              fil.write(remOut)
+            if (
+                os.path.exists(remCachePath) and
+                os.path.getmtime(remCachePath) >= time.time() - 86400
+            ):
+              with open(remCachePath) as fl:
+                remOut = (fl.read()).strip()
+            else:
+              l.debug("Checking if local Ninja is up-to-date...")
 
-          l.debug("Local commit: %s; remote commit: %s." % (locOut, remOut))
+              subprocess.check_call(["git", "fetch"], cwd = ninjaDir)
 
-          if locOut == remOut:
-            l.debug("Local Ninja up-to-date.")
+              parseRem = subprocess.Popen(["git", "rev-parse", r"@{u}"],
+                                          cwd = ninjaDir,
+                                          stdout = subprocess.PIPE)
+              remOut = (unbytes(parseRem.communicate()[0])).strip()
+
+              with open(remCachePath, 'w') as fil:
+                fil.write(remOut)
+
+            l.debug("Local commit: %s; remote commit: %s." % (locOut, remOut))
+
+            if locOut == remOut:
+              l.debug("Local Ninja up-to-date.")
+            else:
+              l.info("Local Ninja out-of-date.  Updating from GitHub...")
+
+              subprocess.check_call(["git", "pull"], cwd = ninjaDir)
+
+              bootstrap = True
           else:
-            l.info("Local Ninja out-of-date.  Updating from GitHub...")
+            l.info("Local Ninja is from a different repo.  Re-cloning...")
 
-            subprocess.check_call(["git", "pull"], cwd = ninjaDir)
+            shutil.rmtree(ninjaDir)
+            subprocess.check_call(["git", "clone", repo, ninjaDir])
 
             bootstrap = True
         else:
-          l.info("Local Ninja is from a different repo.  Re-cloning...")
+          l.info("No local version of Ninja found.  Cloning from GitHub...")
 
-          shutil.rmtree(ninjaDir)
+          if os.path.exists(ninjaDir): shutil.rmtree(ninjaDir)
+
           subprocess.check_call(["git", "clone", repo, ninjaDir])
 
           bootstrap = True
-      else:
-        l.info("No local version of Ninja found.  Cloning from GitHub...")
 
-        if os.path.exists(ninjaDir): shutil.rmtree(ninjaDir)
+        if bootstrap:
+          l.info("Bootstrapping local Ninja...")
 
-        subprocess.check_call(["git", "clone", repo, ninjaDir])
+          subprocess.check_call([
+            sys.executable, os.path.join(os.getcwd(), ninjaDir, "configure.py"),
+            "--bootstrap"
+          ],
+                                cwd = ninjaDir)
 
-        bootstrap = True
+    pythonSucks = [ninjaPath]
+    try:
+      doGitStuff(pythonSucks)
+    except subprocess.CalledProcessError as e:
+      l.info("An error occurred trying to do Git stuff.")
 
-      if bootstrap:
-        l.info("Bootstrapping local Ninja...")
+      if not testExe(ninjaPath): raise
 
-        subprocess.check_call([
-          sys.executable, os.path.join(os.getcwd(), ninjaDir, "configure.py"),
-          "--bootstrap"
-        ],
-                              cwd = ninjaDir)
+      l.info("Ninja executable found; attempting to continue...")
+
+    [ninjaPath] = pythonSucks
 
     procinfo = [ninjaPath, "-f", buildFile]
     procinfo.extend(args)
