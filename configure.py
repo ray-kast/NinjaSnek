@@ -52,6 +52,8 @@ class BuildPath(object):
 class BuildDeps(object):
   @staticmethod
   def create(obj, out):
+    if obj is None: return BuildDeps(out, [])
+
     if isinstance(obj, BuildDeps): return obj
 
     if isinstance(obj, (basestring, BuildPath)):
